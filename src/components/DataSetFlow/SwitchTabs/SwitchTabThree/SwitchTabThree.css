@@ -1,0 +1,27 @@
+.switch-tab-three-heading {
+  margin: 30px 0 15px;
+}
+.switch-tab-three-wrapper {
+  border-radius: 10px;
+  border: 1px solid #e7e7e7;
+}
+
+.tab-three-table-header {
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 0.1fr 2fr 1fr 1fr 1fr;
+  background-color: #fcfcfd;
+  border-bottom: 1px solid #e7e7e7;
+}
+.tab-three-table-row {
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 0.1fr 2fr 1fr 1fr 1fr;
+  border-top: 1px solid #e7e7e7;
+}
+.tab-three-loading-bar {
+  padding-left: 350px;
+  margin-top: 20px;
+}

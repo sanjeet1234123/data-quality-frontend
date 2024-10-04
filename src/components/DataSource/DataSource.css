@@ -1,0 +1,110 @@
+.data-source {
+  padding: 40px 20px;
+  display: flex;
+  gap: 20px;
+  height: 100%;
+}
+
+/* data-source-header */
+.data-source-wrapper {
+  min-height: calc(100vh - 100px);
+  background-color: #ffffff;
+  width: 100%;
+  border-radius: 20px;
+  padding: 20px;
+  border: 1px solid #e7e7e7;
+}
+
+.data-source-header {
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e7e7e7;
+}
+.data-source-header-back-btn {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.data-source-header-back-btn img {
+  height: 10px;
+}
+.data-source-header-back-btn p {
+  font-weight: 500;
+}
+.data-source-header-ask-ai-btn {
+  height: 34px;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  padding: 6px 15px;
+  align-items: center;
+  border-radius: 20px;
+  background-color: #000000;
+}
+.data-source-header-ask-ai-btn p {
+  color: #ffffff;
+}
+
+.no-data-source-wrapper {
+  text-align: center;
+  margin: 30px 0;
+}
+.no-data-source-heading {
+  margin-bottom: 50px;
+}
+.no-data-source-heading p:nth-child(2) {
+  margin: 20px 0 13px;
+  color: #000000;
+  font-size: 25px;
+  font-weight: 600;
+}
+.no-data-source-heading p:nth-child(3) {
+  font-size: 20px;
+}
+
+/* - */
+
+.list-of-data-sources-wrapper {
+  display: grid;
+  margin: 0 auto;
+  width: max-content;
+  gap: 20px;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+@media (max-width: 767px) {
+  .list-of-data-sources-wrapper {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.data-source-tool {
+  /* margin-bottom: 30px; */
+  display: flex;
+  align-items: center;
+  padding: 10px 30px;
+  border: 1px solid #aaaaaa;
+  border-radius: 10px;
+}
+.list-of-data-sources-wrapper img {
+  width: 100px;
+}
+
+/* - */
+.data-source-heading-wrapper {
+  display: flex;
+  justify-content: space-between;
+  margin: 20px 0;
+}
+.data-source-heading p:nth-child(1) {
+  color: #000000;
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.data-source-heading p:nth-child(2) {
+  font-size: 15px;
+}
+.drag-drop {
+  max-width: 520px;
+}

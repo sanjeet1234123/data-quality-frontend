@@ -1,0 +1,27 @@
+.tab-content-two-wrapper {
+
+}
+
+.schema {
+  width: 100%;
+}
+
+td {
+  padding: 10px;
+}
+
+.schemaData h4 {
+  font-size: 16px;
+  color: rgb(66 66 66);
+  font-weight: 400;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.schemaData p {
+  font-size: 16px;
+  color: rgb(66 66 66);
+  font-weight: 400;
+  cursor: pointer;
+}
+

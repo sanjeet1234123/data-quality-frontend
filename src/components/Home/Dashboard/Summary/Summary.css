@@ -1,0 +1,40 @@
+.summary-heading p {
+  font-weight: 600;
+  margin: 20px 0;
+}
+.summary {
+  padding: 15px;
+  border-radius: 20px;
+  background-color: #f9f9f9;
+}
+.summary-table-header {
+  display: grid;
+  grid-template-columns: 1fr 0.6fr 1fr;
+  padding-bottom: 10px;
+  align-items: center;
+
+  font-size: 14px;
+  font-weight: 500;
+}
+.summary-table-rows {
+  display: grid;
+  grid-template-columns: 1fr 0.6fr 1fr;
+  padding: 10px 0;
+  align-items: center;
+  border-top: 1px solid #e7e7ee;
+  font-size: 14px;
+}
+
+.insights-heading p {
+  font-weight: 600;
+  margin: 20px 0;
+}
+
+.insights-graph {
+  padding: 15px;
+  background-color: #f9f9f9;
+  border-radius: 20px;
+}
+.insights-graph img {
+  width: 100%;
+}

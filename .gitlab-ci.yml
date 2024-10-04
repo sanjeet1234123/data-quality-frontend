@@ -1,0 +1,26 @@
+stages:
+  - build
+  - push
+  - deploy
+ 
+build:
+  stage: build
+  script:
+    - echo "$HARBOR_URL/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME:$CI_COMMIT_BRANCH$CI_PIPELINE_ID" |  xargs -I {} docker build -t {} .
+  only:
+    - feature-deploy
+Push:
+  stage: push 
+  script:
+      - docker push $HARBOR_URL/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME:$CI_COMMIT_BRANCH$CI_PIPELINE_ID
+  only:
+    - feature-deploy
+ 
+deploy:
+  stage: deploy
+  tags:
+    - stable
+  script:
+    - kubectl set image deployment/data-quality-frontend data-quality-frontend=$HARBOR_URL/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME:$CI_COMMIT_BRANCH$CI_PIPELINE_ID -n dataquality --kubeconfig=$(echo $ITOPS_CLUSTER)
+  only:  
+    - feature-deploy

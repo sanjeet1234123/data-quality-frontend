@@ -1,5 +1,6 @@
 import "./ProfilingTable.css";
 import { useState, useEffect } from "react";
+import { useNavigate } from 'react-router-dom';
 import delete1 from "./Images/delete1.svg";
 import delete2 from "./Images/delete2.svg";
 import stats from "./Images/stats.svg";
@@ -18,6 +19,14 @@ import result from "./Images/result.svg";
 import question from "./Images/question.svg";
 import TextField from '@mui/material/TextField';
 import Autocomplete from '@mui/material/Autocomplete';
+import axios from 'axios';
+import { REACT_BASE_LOCAL_URL } from "../../config";
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
+import Button from '@mui/material/Button';
 
 import { styled } from '@mui/material/styles';
 import ArrowForwardIosSharpIcon from '@mui/icons-material/ArrowForwardIosSharp';
@@ -34,8 +43,106 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 
 function ProfilingTable({ table, schema, connection, onBack }) {
+  const [data, setData] = useState([]);
+  const [columnName, setColumnName] = useState('');
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeTab, setActiveTab] = useState("data-statistics");
   const [selectedTables, setSelectedTables] = useState([]);
+  const [statusData, setStatusData] = useState(null);
+  const [columnsData, setColumnsData] = useState([]);
+
+  const fetchColumnStatistics = () => {
+    axios
+      .get(`${REACT_BASE_LOCAL_URL}/api/connections/${connection}/schemas/${schema}/tables/${table}/columns/statistics`)
+      .then((response) => {
+        console.log("API Response:", response.data);
+        const formattedData = response.data.column_statistics.map((column) => {
+          const stats = column.statistics || [];
+          const nullsPercentStat = stats.find((stat) => stat.collector === 'nulls_percent');
+          const nullsPercent = nullsPercentStat ? (parseFloat(nullsPercentStat.result).toFixed(2) + '%') : 'N/A';
+
+          return {
+            columnName: column.column_name || 'N/A',
+            detectedDataType: stats.find((stat) => stat.collector === 'column_samples')?.resultDataType || 'N/A',
+            importedDataType: column.type_snapshot?.column_type || 'N/A',
+            length: column.type_snapshot?.length || 'N/A',
+            nullsPercent: nullsPercent,
+            distinctCount: stats.find((stat) => stat.collector === 'distinct_count')?.result || 'N/A',
+          };
+        });
+        setData(formattedData);
+      })
+      .catch((error) => {
+        console.error('Error fetching the data:', error);
+      });
+  };
+
+  useEffect(() => {
+    fetchColumnStatistics();
+  }, [connection, schema, table]);
+
+  const handleCollectStats = (columnName) => {
+    const payload = {
+      connection: connection,
+      fullTableName: `${schema}.${table}`,
+      enabled: true,
+      columnNames: [columnName],
+    };
+    axios
+      .post(`${REACT_BASE_LOCAL_URL}/api/jobs/collectstatistics/table?configureTable=false&wait=false`, payload)
+      .then((response) => {
+        console.log('Statistics collection started:', response.data);
+        axios
+          .get(`${REACT_BASE_LOCAL_URL}/api/connections/${connection}/schemas/${schema}/tables/${table}/columns/statistics`)
+          .then((response) => {
+            const formattedData = response.data.column_statistics.map((column) => {
+              const stats = column.statistics || [];
+              const nullsPercentStat = stats.find((stat) => stat.collector === 'nulls_percent');
+              const nullsPercent = nullsPercentStat ? (parseFloat(nullsPercentStat.result).toFixed(2) + '%') : 'N/A';
+
+              return {
+                columnName: column.column_name || 'N/A',
+                detectedDataType: stats.find((stat) => stat.collector === 'column_samples')?.resultDataType || 'N/A',
+                importedDataType: column.type_snapshot?.column_type || 'N/A',
+                length: column.type_snapshot?.length || 'N/A',
+                nullsPercent: nullsPercent,
+                distinctCount: stats.find((stat) => stat.collector === 'distinct_count')?.result || 'N/A',
+              };
+            });
+            setData(formattedData);
+          })
+          .catch((error) => {
+            console.error('Error fetching the updated data:', error);
+          });
+      })
+      .catch((error) => {
+        console.error('Error collecting statistics:', error);
+      });
+  };
+
+  const handleOpenDeleteDialog = (name) => {
+    setColumnName(name);
+    setOpenDeleteDialog(true);
+  };
+  const confirmDelete = () => {
+    const deleteUrl = `${REACT_BASE_LOCAL_URL}/api/connections/${connection}/schemas/${schema}/tables/${table}/columns/${columnName}`;
+    axios
+      .delete(deleteUrl)
+      .then((response) => {
+        console.log("Delete successful:", response);
+        setRefreshTrigger((prev) => prev + 1);
+        setOpenDeleteDialog(false);
+        fetchColumnStatistics();
+      })
+      .catch((error) => {
+        console.error("Delete failed:", error);
+        setOpenDeleteDialog(false);
+      });
+  };
+  const handleCloseDeleteDialog = () => {
+    setOpenDeleteDialog(false);
+  };
 
   const handleCheckboxChange = (columnName) => {
     setSelectedTables(prevSelected =>
@@ -45,8 +152,41 @@ function ProfilingTable({ table, schema, connection, onBack }) {
     );
   };
 
-  const [isVolumeExpanded, setIsVolumeExpanded] = useState(true);
+  const fetchStatusData = () => {
+    const apiUrl = `${REACT_BASE_LOCAL_URL}/api/connections/${connection}/schemas/${schema}/tables/${table}/status?profiling=true&monitoring=false&partitioned=false`;
 
+    axios
+      .get(apiUrl)
+      .then((response) => {
+        setStatusData(response.data);
+        const columns = Object.keys(response.data.columns).map((key) => ({
+          name: key,
+          ...response.data.columns[key]
+        }));
+        setColumnsData(columns);
+      })
+      .catch((error) => {
+        console.error('Error fetching status data:', error);
+      });
+  };
+
+  useEffect(() => {
+    fetchStatusData();
+  }, [connection, schema, table]);
+  const formatValue = (value) => (value !== undefined && value !== null ? value : 'N/A');
+
+  const [checksVisibility, setChecksVisibility] = useState({});
+
+  const toggleChecksVisibility = (columnName) => {
+    setChecksVisibility(prev => ({
+      ...prev,
+      [columnName]: !prev[columnName],
+    }));
+  };
+
+
+
+  const [isVolumeExpanded, setIsVolumeExpanded] = useState(true);
   const toggleSection = (section) => {
     if (section === "volume") {
       setIsVolumeExpanded(!isVolumeExpanded);
@@ -73,9 +213,9 @@ function ProfilingTable({ table, schema, connection, onBack }) {
   return (
     <div className="profiling-container">
       <div className="top-profiling-conatiner">
-        <h1>Profiling checks for {connection}.{table}.{schema}</h1>
+        <h1>Profiling checks for {connection}.{schema}.{table}</h1>
         <div className="profiling-action">
-          <button>Collect statistics</button>
+          <button onClick={() => handleCollectStats()} >Collect statistics</button>
           <button onClick={onBack}>Back</button>
         </div>
       </div>
@@ -114,7 +254,6 @@ function ProfilingTable({ table, schema, connection, onBack }) {
           <p>Profiling checks editor</p>
         </div>
       </div>
-
       {activeTab === "data-statistics" && (
         <div className="data-statistics-conatiner">
           <div className="table-statistics">
@@ -138,55 +277,90 @@ function ProfilingTable({ table, schema, connection, onBack }) {
                 </tr>
               </thead>
               <tbody>
-                {data.map((row, index) => (
-                  <tr key={index}>
-                    <td>
-                      <div className="dimention-wrapper" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                        <input
-                          className="stats-input"
-                          type="checkbox"
-                          checked={selectedTables.includes(row.columnName)}
-                          onChange={() => handleCheckboxChange(row.columnName)}
-                        />
-                        <div className="stats-wrapper">
-                          <div className="round"></div>
-                          <div className="red-round"></div>
-                          <div className="round"></div>
+                {data.length > 0 ? (
+                  data.map((row, index) => (
+                    <tr key={index}>
+                      <td>
+                        <div className="dimension-wrapper" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                          <input
+                            className="stats-input"
+                            type="checkbox"
+                            checked={selectedTables.includes(row.columnName)}
+                            onChange={() => handleCheckboxChange(row.columnName)}
+                          />
+                          <div className="stats-wrapper">
+                            <div className="round"></div>
+                            <div className="red-round"></div>
+                            <div className="round"></div>
+                          </div>
                         </div>
-                        {row.dimensions}
-                      </div>
-                    </td>
-                    <td>{row.columnName}</td>
-                    <td>{row.detectedDataType}</td>
-                    <td>{row.importedDataType}</td>
-                    <td>{row.length}</td>
-                    <td>
-                      <div className="null-wrapper">
-                        {row.nullsPercent}
-                        <div className="null-percentage">
+                      </td>
+                      <td>{row.columnName || 'N/A'}</td>
+                      <td>{row.detectedDataType || 'N/A'}</td>
+                      <td>{row.importedDataType || 'N/A'}</td>
+                      <td>{row.length || 'N/A'}</td>
+                      <td>{row.nullsPercent || 'N/A'}</td>
+                      <td><div className="distinct-count">{row.distinctCount || 'N/A'}</div></td>
+                      <td>
+                        <div className="profiling-action-wrapper">
+                          <div className="profiling-action-buttom">
+                            <img
+                              src={stats}
+                              alt="stats"
+                              onClick={() => handleCollectStats(row.columnName)}
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </div>
+                          <div className="profiling-action-buttom">
+                            <img
+                              onClick={() => handleOpenDeleteDialog(row.columnName)} // Pass the column name to the dialog
+                              src={delete1}
+                              alt="delete"
+                              style={{ cursor: 'pointer' }} // Add cursor style for better UX
+                            />
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td><div className="distinct-count">{row.distinctCount}</div></td>
-                    <td>
-                      <div className="profiling-action-wrapper">
-                        <div className="profiling-action-buttom">
-                          <img src={stats}></img>
-                        </div>
-                        <div className="profiling-action-buttom">
-                          <img src={delete1}></img>
-                        </div>
-                      </div>
-                    </td>
-
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="8">No data available</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
+          <Dialog
+            open={openDeleteDialog}
+            onClose={handleCloseDeleteDialog}
+            sx={{ '& .MuiDialog-paper': { padding: '20px', borderRadius: '12px' } }}
+          >
+            <DialogTitle sx={{ backgroundColor: '#f5f5f5', fontSize: '1.5rem', fontWeight: 'bold', color: '#333' }}>
+              Confirm Deletion
+            </DialogTitle>
+            <DialogContent sx={{ padding: '16px' }}>
+              <DialogContentText sx={{ fontSize: '1rem', color: '#666', marginBottom: '16px' }}>
+                Are you sure you want to delete the column "{columnName}"?
+              </DialogContentText>
+            </DialogContent>
+            <DialogActions sx={{ display: 'flex', justifyContent: 'flex-end', padding: '16px' }}>
+              <Button
+                onClick={handleCloseDeleteDialog}
+                sx={{ backgroundColor: '#f5f5f5', color: '#333', fontWeight: 'bold', marginRight: '8px', padding: '8px 16px', borderRadius: '4px', '&:hover': { backgroundColor: '#e0e0e0' } }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDelete}
+                sx={{ backgroundColor: '#d32f2f', color: 'white', fontWeight: 'bold', padding: '8px 16px', borderRadius: '4px', '&:hover': { backgroundColor: '#c62828' } }}
+              >
+                Confirm
+              </Button>
+            </DialogActions>
+          </Dialog>
         </div>
       )}
-
       {activeTab === "table-quality-status" && (
         <div className="table-quality-status">
           <div className="filters-section">
@@ -217,39 +391,80 @@ function ProfilingTable({ table, schema, connection, onBack }) {
           </div>
           <div className="status-summary">
             <div className="current-status">
-              <p><strong>Current table status</strong></p>
-              <p>Status: <strong>valid</strong></p>
-              <p>Last check executed at: <strong>2024-10-04 08:00:00</strong></p>
-              <p>Data quality KPI score: <strong>100.00%</strong></p>
+              <p style={{ marginBottom: '10px' }}><strong>Current table status</strong></p>
+              <p>Status: <strong>{formatValue(statusData.current_severity)}</strong></p>
+              <p>Last check executed at: <strong>{formatValue(new Date(statusData.last_check_executed_at).toLocaleString())}</strong></p>
+              <p>Data quality KPI score: <strong>{formatValue(statusData.data_quality_kpi)}</strong></p>
             </div>
             <div className="total-checks">
-              <p><strong>Total checks executed</strong></p>
-              <p>Total checks executed: <strong>25</strong></p>
-              <p>Correct results: <strong>12</strong></p>
-              <p>Warnings: <strong>0</strong></p>
-              <p>Errors: <strong>0</strong></p>
-              <p>Fatal results: <strong>0</strong></p>
-              <p>Execution errors: <strong>13</strong></p>
+              <p style={{ marginBottom: '10px' }}><strong>Total checks executed</strong></p>
+              <p>Total checks executed: <strong>{formatValue(statusData.executed_checks)}</strong></p>
+              <p>Correct results: <strong>{formatValue(statusData.valid_results)}</strong></p>
+              <p>Warnings: <strong>{formatValue(statusData.warnings)}</strong></p>
+              <p>Errors: <strong>{formatValue(statusData.errors)}</strong></p>
+              <p>Fatal results: <strong>{formatValue(statusData.fatals)}</strong></p>
+              <p>Execution errors: <strong>{formatValue(statusData.execution_errors)}</strong></p>
             </div>
           </div>
           <div className="table-checks-wrapper">
-            <div className="table-checks-first-row">
-              <p>Validity</p>
-            </div>
-            <div className="table-checks-second-row">
-              <p>Table level checks</p>
-            </div>
-            <div className="table-checks-third-row">
-              <div className="table-checks-left-coloumn">
-                <p>area</p>
-              </div>
-              <div className="table-checks-right-coloumn">
-                <div className="drop-details">
-                  <img src={drop}></img>
-                </div>
-              </div>
+      <div className="table-checks-first-row">
+        <p>Validity</p>
+      </div>
+      <div className="table-checks-second-row">
+        <p>Table level checks</p>
+      </div>
+      {columnsData.map((column) => (
+        <div className="table-checks-third-row" key={column.name}>
+          <div className="table-checks-left-coloumn">
+            <p>{formatValue(column.name)}</p>
+          </div>
+          <div className="table-checks-right-coloumn">
+            <div className="drop-details" onClick={() => toggleChecksVisibility(column.name)}>
+              <img
+                src={drop}
+                alt="drop icon"
+                className={checksVisibility[column.name] ? 'rotated' : ''}
+              />
+              {checksVisibility[column.name] && (
+                  <div className="checks-wrapper">
+                    {column.checks && Object.keys(column.checks).map((checkKey) => {
+                      const check = column.checks[checkKey];
+                      return (
+                        <div className="checks" key={checkKey}>
+                          <div className="check-key-value">
+                            <h3>Data quality checks:</h3>
+                            <p>{checkKey}</p>
+                          </div>
+                          <div className="check-key-value">
+                            <h3>Last executed at:</h3>
+                            <p>{formatValue(new Date(check.last_executed_at).toLocaleString())}</p>
+                          </div>
+                          <div className="check-key-value">
+                            <h3>Current severity level:</h3>
+                            <p>{formatValue(check.current_severity)}</p>
+                          </div>
+                          <div className="check-key-value">
+                            <h3>Highest historical severity level:</h3>
+                            <p>{formatValue(check.highest_historical_severity)}</p>
+                          </div>
+                          <div className="check-key-value">
+                            <h3>Category:</h3>
+                            <p>{formatValue(check.category)}</p>
+                          </div>
+                          <div className="check-key-value">
+                            <h3>Quality dimensions:</h3>
+                            <p>{formatValue(check.quality_dimension)}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
             </div>
           </div>
+        </div>
+      ))}
+    </div>
         </div>
       )}
 
@@ -778,28 +993,5 @@ function ProfilingTable({ table, schema, connection, onBack }) {
     </div>
   );
 }
-
-const data = [
-  {
-    dimensions: "Mixed",
-    columnName: "area",
-    detectedDataType: "Mixed data type",
-    importedDataType: "CHARACTER VARYING",
-    length: 225,
-    scale: "",
-    nullsPercent: "0.00%",
-    distinctCount: "7"
-  },
-  {
-    dimensions: "STRING",
-    columnName: "company",
-    detectedDataType: "STRING",
-    importedDataType: "CHARACTER VARYING",
-    length: 255,
-    scale: "",
-    nullsPercent: "0.00%",
-    distinctCount: "4"
-  },
-];
 
 export default ProfilingTable;
